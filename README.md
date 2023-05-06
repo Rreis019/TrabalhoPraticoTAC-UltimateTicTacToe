@@ -2,7 +2,7 @@
 
 ## Tarefas ❌✅
 
-❌ - Apresentação dos tabuleiros no ecrã (0,1 val)
+✅ - Apresentação dos tabuleiros no ecrã (0,1 val)
 
 ❌ - Leitura e apresentação do nome do jogador em cada jogada (0,2 val)
 
@@ -21,7 +21,7 @@ correspondente mini-tabuleiro. (1,2 val)
 
 ### Funçionalidades Extra
 
-- Restrição na escolha do mini-tabuleiro (0,6 val)
+❌ Restrição na escolha do mini-tabuleiro (0,6 val)
 A escolha do mini-tabuleiro em que se joga não é livre, sendo determinada pela
 jogada anterior do adversário. A posição escolhida pelo adversário identifica o
 mini-tabuleiro onde deve ser continuado o jogo. 
