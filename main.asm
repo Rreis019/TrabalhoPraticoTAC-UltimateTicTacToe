@@ -3,6 +3,14 @@
 .STACK 2048
 
 
+
+;Ultimat tic tac toe
+;1 - Player vs Player
+;2 - Player vs Computer
+
+
+
+
 DATA SEGMENT
     BOARDS db 9 dup (9 dup ('X')) ; os tabuleiros
     SELECTED_TABLE DB 0 ; indica qual tabela esta selecionada
@@ -11,6 +19,31 @@ DATA SEGMENT
 
     FIRST_PLAYER_NAME DB '0 : Joao',0
     SECOND_PLAYER_NAME DB '0 : Manuel',0
+
+
+
+    CURRENT_SCREEN_INDEX DB 'text',"$"
+
+    CURRENT_ITEM_INDEX DB 0
+    MENU_SELECTED DB '-> ',0
+    MENU_TITLE DB 'Ultimate TicTacToe',0
+
+    MENU_HELP DB 'Use w ou s para navegar pelo menu',0
+    MENU_HELP2 DB 'Use enter para confirmar selecao',0
+
+    STARTMENU_ITEMS:
+        DB 'Novo Jogo',0
+        DB 'Continuar Jogo',0
+        DB 'Sair do jogo',0
+    STARTMENU_SIZE DB 3
+
+    MODE_MENU_ITEMS:
+        DB 'Jogador vs Jogador',0
+        DB 'Jogador vs Computador',0
+        DB 'Voltar para o menu',0
+    MODE_MENU_SIZE DB 3
+
+
 DATA ENDS
 
 
@@ -25,15 +58,147 @@ CODE SEGMENT PARA 'CODE'
         MOV AL,13h ; https://stanislavs.org/helppc/int_10-0.html
         INT 10h
  
+        ;CALL ON_RENDER
+        ;CALL ON_GAME_RENDER
         
-        CALL ON_RENDER
+
         GAME_LOOP:
+            MOV AX, 0A000h  ; Set ES to point to the video memory segment
+            MOV ES, AX
+            MOV DI, 0       ; Set DI to the start of the video memory
+            MOV CX, 320*200 ; Set CX to the total number of pixels on the screen
+            MOV AL, 0       ; Set AL to the black color index
+            REP STOSB       ; Use REP STOSB to set all pixels to black
+            
+
+
+            CALL MENU_RENDER
             JMP GAME_LOOP
       
 
         MOV AH,4Ch ; end program
         INT 21h
 
+
+
+
+
+
+
+;Draw menu with items
+;SI -> pointer items
+;AX -> size items
+MENU_RENDER:
+    MOV AH,02h;Set cursor position
+    MOV DH,0h;row
+    MOV DL,0h;col
+    INT 10h
+    
+    MOV BL,07h; light gray color 
+    MOV SI,OFFSET MENU_TITLE
+    CALL DRAW_STRING
+    CALL BREAK_LINE
+    CALL BREAK_LINE
+
+    MOV CX,0
+    MOV SI, OFFSET STARTMENU_ITEMS
+    MOV BL,0Fh; white color
+    ITEM_LOOP:
+        PUSH CX
+        
+        CMP CL,CURRENT_ITEM_INDEX
+        JNE ITEM_DRAW
+
+        MOV BL, 02h; green color
+        PUSH SI
+        MOV SI,OFFSET MENU_SELECTED
+        CALL DRAW_STRING
+        POP SI
+
+        ITEM_DRAW:
+            CALL DRAW_STRING            
+            CALL BREAK_LINE
+            MOV BL,0Fh; white color 
+        POP CX
+        INC CX
+        CMP CL, STARTMENU_SIZE
+        JNE ITEM_LOOP
+
+
+    CALL BREAK_LINE
+    MOV BL,07h; light gray color 
+    MOV SI,OFFSET MENU_HELP
+    CALL DRAW_STRING
+    CALL BREAK_LINE
+
+    MOV SI,OFFSET MENU_HELP2
+    CALL DRAW_STRING
+
+    CALL MENU_EVENTS
+    RET
+
+MENU_EVENTS:
+    MOV AH, 01h;read char
+    INT 21h;al 
+
+    CMP AL, 's' 
+    JE DOWN_KEY
+
+    CMP AL, 'S'     
+    JE DOWN_KEY
+
+    CMP AL , 'w'
+    JE UP_KEY
+
+    CMP AL, 'W'     
+    JE DOWN_KEY
+
+    JMP MENU_EVENTS_END
+    DOWN_KEY:
+        MOV DL,STARTMENU_SIZE
+        DEC DL 
+        CMP CURRENT_ITEM_INDEX, DL
+        JE MENU_EVENTS_END ; se chegou ao limite vai pro fim
+
+        INC CURRENT_ITEM_INDEX
+        JMP MENU_EVENTS_END
+
+    UP_KEY:
+        CMP CURRENT_ITEM_INDEX,0
+        JE MENU_EVENTS_END
+
+        DEC CURRENT_ITEM_INDEX
+        JMP MENU_EVENTS_END
+MENU_EVENTS_END:
+    RET
+
+;SI -> pointer to string
+;AX -> return string lenght
+STRLEN:
+    PUSH CX
+    MOV CX, 0
+
+    ; Loop until null terminator is found
+    LOOP_START:
+        LODSB ; Load character from string and increment SI
+        CMP AL, 0 ; Check for null terminator
+        JE LOOP_END ; Exit loop if null terminator is found
+        INC CX 
+        JMP LOOP_START
+    LOOP_END:
+        DEC CX ; Exclude null terminator from length
+        MOV AX, CX ; Move length into AX register
+        POP CX
+        RET 
+
+BREAK_LINE:
+    MOV AH,03h;Get cursor position
+    INT 10h; DH -> row | DL -> col | AX -> 0 | CH -> Start scan line | CL -> End Scan line
+    INC DH
+    MOV DL,0
+    MOV AH,02h;Set cursor position
+    INT 10h
+    RET 
 ON_RENDER:
     MOV AH,02h;Set cursor position
     MOV DH,8h;row

@@ -3,8 +3,9 @@ C = ml
 CodeFolder = C:\8086\CODIGO
 ASM_FILES = $(wildcard *.asm)
 OBJ_FILES = $(patsubst %.asm, %.obj, $(ASM_FILES))
-OUTPUT_FILE = main.exe
+OUTPUT_FILE = GAME.exe
 
 all: $(wildcard *.asm)
 	copy *.asm C:\8086\CODIGO
-	dosbox -c "ml $(ASM_FILES)" -c "link $(OBJ_FILES);" -c "$(OUTPUT_FILE)"
+	del C:\8086\CODIGO\$(OUTPUT_FILE)
+	dosbox -c "ml $(ASM_FILES) /Fe$(OUTPUT_FILE)" -c "$(OUTPUT_FILE)"
