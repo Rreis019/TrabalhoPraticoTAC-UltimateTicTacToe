@@ -2,29 +2,27 @@
 .MODEL SMALL
 .STACK 2048
 
-
-
 ;Ultimat tic tac toe
 ;1 - Player vs Player
 ;2 - Player vs Computer
 
 
-
-
 DATA SEGMENT
-    BOARDS db 9 dup (9 dup ('X')) ; os tabuleiros
+    IS_RUNNING DB 1
+    CURRENT_GAMEMODE DB 0 ; o modo de jogo atual | 0 -> player vs player | 1 -> player vs computer
+
+    BOARDS db 9 dup (9 dup (' ')) ; os tabuleiros
     SELECTED_TABLE DB 0 ; indica qual tabela esta selecionada
     CURRENT_PLAYER DB 0 ; indica qual é o player que esta jogar
+    CURRENT_CHECK_POS DB 0 ; indica a posição do X ao jogar
     BOARD_WIN db 9 dup (0) ; indica tabelas que estão ganhas
 
     FIRST_PLAYER_NAME DB '0 : Joao',0
     SECOND_PLAYER_NAME DB '0 : Manuel',0
 
+    CURRENT_SCREEN_INDEX DB 0
 
-
-    CURRENT_SCREEN_INDEX DB 'text',"$"
-
-    CURRENT_ITEM_INDEX DB 0
+    CURRENT_ITEM_INDEX DW 0
     MENU_SELECTED DB '-> ',0
     MENU_TITLE DB 'Ultimate TicTacToe',0
 
@@ -35,13 +33,13 @@ DATA SEGMENT
         DB 'Novo Jogo',0
         DB 'Continuar Jogo',0
         DB 'Sair do jogo',0
-    STARTMENU_SIZE DB 3
+    STARTMENU_SIZE DW 3
 
     MODE_MENU_ITEMS:
         DB 'Jogador vs Jogador',0
         DB 'Jogador vs Computador',0
         DB 'Voltar para o menu',0
-    MODE_MENU_SIZE DB 3
+    MODE_MENU_SIZE DW 3
 
 
 DATA ENDS
@@ -60,7 +58,6 @@ CODE SEGMENT PARA 'CODE'
  
         ;CALL ON_RENDER
         ;CALL ON_GAME_RENDER
-        
 
         GAME_LOOP:
             MOV AX, 0A000h  ; Set ES to point to the video memory segment
@@ -69,44 +66,145 @@ CODE SEGMENT PARA 'CODE'
             MOV CX, 320*200 ; Set CX to the total number of pixels on the screen
             MOV AL, 0       ; Set AL to the black color index
             REP STOSB       ; Use REP STOSB to set all pixels to black
-            
 
-
-            CALL MENU_RENDER
-            JMP GAME_LOOP
-      
-
+            CALL RENDER_CURRENT_SCREEN
+            CMP IS_RUNNING , 1
+            JE GAME_LOOP
         MOV AH,4Ch ; end program
         INT 21h
 
 
 
+RENDER_CURRENT_SCREEN:
+    MOV AL,CURRENT_SCREEN_INDEX
+    CMP AL , 0
+    JE S_STARTMENU
+
+    CMP AL , 1
+    JE S_GAMEMODE
+
+    CMP AL , 2
+    JE S_GAME
+
+    JMP RENDER_CURR_END
+
+    S_STARTMENU:
+        MOV DX, OFFSET MENU_TITLE
+        MOV SI, OFFSET STARTMENU_ITEMS
+        MOV AX, STARTMENU_SIZE
+        CALL MENU_RENDER
+        MOV SI , STARTMENU_EVENTS
+        CALL MENU_EVENTS
+        JMP RENDER_CURR_END
+    S_GAMEMODE:
+        MOV DX, OFFSET MENU_TITLE
+        MOV SI, OFFSET MODE_MENU_ITEMS
+        MOV AX, MODE_MENU_SIZE
+        CALL MENU_RENDER
+        MOV SI , GAMEMODE_EVENTS
+        CALL MENU_EVENTS
+        JMP RENDER_CURR_END
+
+    S_GAME:
+        CALL GAME_RENDER
+        CALL GAME_EVENTS
+        JMP RENDER_CURR_END
+RENDER_CURR_END:
+    RET
+
+;---------------------------------------------------------------------------------
+GAMEMODE_EVENTS:
+    CMP CURRENT_ITEM_INDEX , 0
+    JE GAMEMODE_PVP
+
+    CMP CURRENT_ITEM_INDEX , 1
+    JE GAMEMODE_PVC
+
+    CMP CURRENT_ITEM_INDEX , 2
+    JE GAMEMODE_PVC_BACK
+
+    JMP GAMEMODE_EVENTS_END
+
+    GAMEMODE_PVP: ; player vs player
+        MOV CURRENT_GAMEMODE,0
+        MOV CURRENT_SCREEN_INDEX,2
+        ;TODO : falta perguntar os nomes
+        JMP GAMEMODE_EVENTS_END
+    GAMEMODE_PVC: ;  player vs computer
+        MOV CURRENT_GAMEMODE,1
+        MOV CURRENT_SCREEN_INDEX,2
+        ;TODO : falta perguntar os nomes
+        JMP GAMEMODE_EVENTS_END
+    GAMEMODE_PVC_BACK:
+        MOV CURRENT_SCREEN_INDEX,0
+        JMP GAMEMODE_EVENTS_END
+GAMEMODE_EVENTS_END:
+    RET
+
+;---------------------------------------------------------------------------------
+STARTMENU_EVENTS:
+    
+    CMP CURRENT_ITEM_INDEX , 0
+    JE STARTMENU_NEWGAME
+
+    CMP CURRENT_ITEM_INDEX , 1
+    JE STARTMENU_CONTINUE
+
+    CMP CURRENT_ITEM_INDEX , 2
+    JE STARTMENU_EXIT
+
+    JMP STARTMENU_EVENTS_END
+
+    STARTMENU_NEWGAME:
+        MOV CURRENT_SCREEN_INDEX,1;muda para o menu gamemode
+        JMP STARTMENU_EVENTS_END
+    STARTMENU_CONTINUE:
+        MOV CURRENT_SCREEN_INDEX,1;muda para o menu gamemode
+        JMP STARTMENU_EVENTS_END
+    STARTMENU_EXIT:
+        MOV IS_RUNNING,0
+        JMP STARTMENU_EVENTS_END
+
+STARTMENU_EVENTS_END:
+    RET
 
 
+;--------------------------------------------------------------------------------
+;Permite renderizar qualquer menu com nItems 
 
 
 ;Draw menu with items
 ;SI -> pointer items
 ;AX -> size items
 MENU_RENDER:
+    PUSH BP
+    MOV BP,SP
+    SUB SP,2; 
+    MOV [BP-2],AX ; items size
+
+    PUSH SI
+    PUSH DX
+
     MOV AH,02h;Set cursor position
     MOV DH,0h;row
     MOV DL,0h;col
     INT 10h
     
     MOV BL,07h; light gray color 
-    MOV SI,OFFSET MENU_TITLE
+    ;MOV SI,OFFSET MENU_TITLE
+    POP SI
     CALL DRAW_STRING
     CALL BREAK_LINE
     CALL BREAK_LINE
 
     MOV CX,0
-    MOV SI, OFFSET STARTMENU_ITEMS
+    POP SI
+    ;MOV SI, OFFSET STARTMENU_ITEMS
     MOV BL,0Fh; white color
     ITEM_LOOP:
         PUSH CX
         
-        CMP CL,CURRENT_ITEM_INDEX
+        CMP CX,CURRENT_ITEM_INDEX
         JNE ITEM_DRAW
 
         MOV BL, 02h; green color
@@ -121,7 +219,7 @@ MENU_RENDER:
             MOV BL,0Fh; white color 
         POP CX
         INC CX
-        CMP CL, STARTMENU_SIZE
+        CMP CX, [BP-2]
         JNE ITEM_LOOP
 
 
@@ -134,9 +232,12 @@ MENU_RENDER:
     MOV SI,OFFSET MENU_HELP2
     CALL DRAW_STRING
 
-    CALL MENU_EVENTS
+    ADD SP,2
+    MOV SP,BP
+    POP BP 
     RET
 
+;SI pointer to function which contains functions of the menu
 MENU_EVENTS:
     MOV AH, 01h;read char
     INT 21h;al 
@@ -151,13 +252,16 @@ MENU_EVENTS:
     JE UP_KEY
 
     CMP AL, 'W'     
-    JE DOWN_KEY
+    JE UP_KEY
+
+    CMP AL, 13     
+    JE ON_CLICK_KEY
 
     JMP MENU_EVENTS_END
     DOWN_KEY:
-        MOV DL,STARTMENU_SIZE
-        DEC DL 
-        CMP CURRENT_ITEM_INDEX, DL
+        MOV DX,STARTMENU_SIZE
+        DEC DX
+        CMP CURRENT_ITEM_INDEX, DX
         JE MENU_EVENTS_END ; se chegou ao limite vai pro fim
 
         INC CURRENT_ITEM_INDEX
@@ -169,37 +273,16 @@ MENU_EVENTS:
 
         DEC CURRENT_ITEM_INDEX
         JMP MENU_EVENTS_END
+    ON_CLICK_KEY:
+        CALL SI ; menu funcs
 MENU_EVENTS_END:
     RET
 
-;SI -> pointer to string
-;AX -> return string lenght
-STRLEN:
-    PUSH CX
-    MOV CX, 0
 
-    ; Loop until null terminator is found
-    LOOP_START:
-        LODSB ; Load character from string and increment SI
-        CMP AL, 0 ; Check for null terminator
-        JE LOOP_END ; Exit loop if null terminator is found
-        INC CX 
-        JMP LOOP_START
-    LOOP_END:
-        DEC CX ; Exclude null terminator from length
-        MOV AX, CX ; Move length into AX register
-        POP CX
-        RET 
+;------------------------------------------------------------------------------------------------------
 
-BREAK_LINE:
-    MOV AH,03h;Get cursor position
-    INT 10h; DH -> row | DL -> col | AX -> 0 | CH -> Start scan line | CL -> End Scan line
-    INC DH
-    MOV DL,0
-    MOV AH,02h;Set cursor position
-    INT 10h
-    RET 
-ON_RENDER:
+
+GAME_RENDER:
     MOV AH,02h;Set cursor position
     MOV DH,8h;row
     MOV DL,10h;col
@@ -235,6 +318,19 @@ ON_RENDER:
     CALL DRAW_BOARDS
 
     RET
+
+GAME_EVENTS:
+    MOV AH, 01h;read char
+    INT 21h;al 
+
+
+
+
+    GAME_EVENTS_END:
+        RET
+
+;--------------------------------------------------------------------------------------
+
 
 DRAW_BOARDS:
     PUSH BP
@@ -336,6 +432,12 @@ DRAW_BOARD:
     RET 
 
 
+
+
+
+;--------------------------------------------------------------------------------
+;Funçoes de utilidade
+
 ;CX -> x
 ;DX -> y
 ;AL -> color   
@@ -370,6 +472,37 @@ DRAW_BOARD:
     MOV SP,BP
     POP BP 
     RET
+
+
+;SI -> pointer to string
+;AX -> return string lenght
+STRLEN:
+    PUSH CX
+    MOV CX, 0
+
+    ; Loop until null terminator is found
+    LOOP_START:
+        LODSB ; Load character from string and increment SI
+        CMP AL, 0 ; Check for null terminator
+        JE LOOP_END ; Exit loop if null terminator is found
+        INC CX 
+        JMP LOOP_START
+    LOOP_END:
+        DEC CX ; Exclude null terminator from length
+        MOV AX, CX ; Move length into AX register
+        POP CX
+        RET 
+
+BREAK_LINE:
+    MOV AH,03h;Get cursor position
+    INT 10h; DH -> row | DL -> col | AX -> 0 | CH -> Start scan line | CL -> End Scan line
+    INC DH
+    MOV DL,0
+    MOV AH,02h;Set cursor position
+    INT 10h
+    RET 
+
+
 
 ;to change x,y use "Set cursor position"
 ;BL -> color
