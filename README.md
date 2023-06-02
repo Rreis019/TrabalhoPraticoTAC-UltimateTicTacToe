@@ -4,7 +4,7 @@
 
 ✅ - Apresentação dos tabuleiros no ecrã (0,1 val)
 
-❌ - Leitura e apresentação do nome do jogador em cada jogada (0,2 val)
+✅ - Leitura e apresentação do nome do jogador em cada jogada (0,2 val)
 
 ❌ - Navegação limitada nas células dos tabuleiros que permitem
 assinalar a jogada de cada jogador (X ou O). Bloquear o
