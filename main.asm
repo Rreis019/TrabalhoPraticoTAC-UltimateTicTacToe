@@ -13,15 +13,20 @@ DATA SEGMENT
     IS_RUNNING DB 1
     CURRENT_GAMEMODE DB 0 ; o modo de jogo atual | 0 -> player vs player | 1 -> player vs computer
 
-    BOARDS db 9 dup (9 dup (' ')) ; os tabuleiros
-    SELECTED_TABLE DB 0 ; indica qual tabela esta selecionada
-    CURRENT_PLAYER DB 0 ; indica qual é o player que esta jogar
-    CURRENT_CHECK_POS DB 0 ; indica a posição do X ao jogar
-    BOARD_WIN db 9 dup (0) ; indica tabelas que estão ganhas
+    BOARDS db 9 dup (9 dup (' ')) ; os tabuleiros | K -> select X | L -> select O
+    SELECTED_TABLE DB  2; indica qual tabela esta selecionada
+    CURRENT_PLAYER DB 1 ; indica qual é o player que esta jogar
+
+
+    ; indica a posição do X ao jogar
+    CURRENT_CHECK_POS DB 1,1 ; x,y 
+
+    BOARD_WIN db 9 dup (0) ; 1 -> Red Ganhou | 2 -> Blue ganhou
 
     FIRST_PLAYER_NAME DB 32 dup(0)
     SECOND_PLAYER_NAME DB 32 dup(0)
     SEPARATOR_NAME DB ' : ',0
+    COMPUTER_NAME DB '  Computer',0
 
     FIRST_PLAYER_SCORE DW 1337
     SECOND_PLAYER_SCORE DW 1338
@@ -69,6 +74,8 @@ CODE SEGMENT PARA 'CODE'
         MOV AL,13h ; https://stanislavs.org/helppc/int_10-0.html
         INT 10h
  
+
+        CALL DRAW_CHECK_POS
 
         GAME_LOOP:
             MOV AX, 0A000h  ; Set ES to point to the video memory segment
@@ -139,74 +146,12 @@ GAMEMODE_EVENTS:
     GAMEMODE_PVP: ; player vs player
         MOV CURRENT_GAMEMODE,0
         MOV CURRENT_SCREEN_INDEX,2
-
-        CALL CLEAR_SCREEN
-        
-        MOV AH,02h;Set cursor position
-        MOV DH,0h;row
-        MOV DL,0h;col
-        INT 10h
-
-        MOV DX, offset INPUT_NAMES ; print string
-        MOV AH,09h
-        INT 21h
-
-        CALL BREAK_LINE
-
-        MOV BL,0Ch; light red color 
-        MOV SI,OFFSET INPUT_FIRSTNAME
-        CALL DRAW_STRING
-
-
-        MOV AH, 0Ah ; read string
-        LEA DX, FIRST_PLAYER_NAME ; FIRST_PLAYER_NAME+0 -> size array | FIRST_PLAYER_NAME+1 -> entered characters
-        MOV FIRST_PLAYER_NAME,32 ; size array
-        INT 21h
-        
-        ;replace last letter with null terminator
-        MOV AX,0
-        ADD AL,[FIRST_PLAYER_NAME+1]
-        MOV SI,OFFSET FIRST_PLAYER_NAME
-        ADD SI,2
-        ADD SI,AX
-        MOV CX,0
-        MOV [SI],CX
-
-        CALL BREAK_LINE
-
-        MOV BL,09h; light blue color 
-        MOV SI,OFFSET INPUT_SECONDNAME
-        CALL DRAW_STRING
-
-
-        MOV AH, 0Ah ; read string
-        LEA DX, SECOND_PLAYER_NAME ; SECOND_PLAYER_NAME+0 -> size array | SECOND_PLAYER_NAME+1 -> entered characters
-        MOV SECOND_PLAYER_NAME,32 ; size array
-        INT 21h
-        CALL BREAK_LINE
-
-        ;replace last letter with null terminator
-        MOV AX,0
-        ADD AL,[SECOND_PLAYER_NAME+1]
-        MOV SI,OFFSET SECOND_PLAYER_NAME
-        ADD SI,2
-        ADD SI,AX
-        MOV CX,0
-        MOV [SI],CX
-
-
-
-
-
-
-
-
-        ;TODO : falta perguntar os nomes
+        CALL READPLAYER_NAMES
         JMP GAMEMODE_EVENTS_END
     GAMEMODE_PVC: ;  player vs computer
         MOV CURRENT_GAMEMODE,1
         MOV CURRENT_SCREEN_INDEX,2
-        ;TODO : falta perguntar os nomes
+        CALL READPLAYER_NAMES
         JMP GAMEMODE_EVENTS_END
     GAMEMODE_PVC_BACK:
         MOV CURRENT_SCREEN_INDEX,0
@@ -312,8 +257,13 @@ MENU_RENDER:
 
 ;SI pointer to function which contains functions of the menu
 MENU_EVENTS:
+
+
     MOV AH, 01h;read char
     INT 21h;al 
+
+
+
 
     CMP AL, 's' 
     JE DOWN_KEY
@@ -352,32 +302,110 @@ MENU_EVENTS_END:
     RET
 
 
+
+;
+READPLAYER_NAMES:
+        CALL CLEAR_SCREEN
+        
+        MOV AH,02h;Set cursor position
+        MOV DH,0h;row
+        MOV DL,0h;col
+        INT 10h
+
+        MOV DX, offset INPUT_NAMES ; print string
+        MOV AH,09h
+        INT 21h
+
+        CALL BREAK_LINE
+
+        MOV BL,0Ch; light red color 
+        MOV SI,OFFSET INPUT_FIRSTNAME
+        CALL DRAW_STRING
+
+
+        MOV AH, 0Ah ; read string
+        LEA DX, FIRST_PLAYER_NAME ; FIRST_PLAYER_NAME+0 -> size array | FIRST_PLAYER_NAME+1 -> entered characters
+        MOV FIRST_PLAYER_NAME,32 ; size array
+        INT 21h
+        
+        ;replace last letter with null terminator
+        MOV AX,0
+        ADD AL,[FIRST_PLAYER_NAME+1]
+        MOV SI,OFFSET FIRST_PLAYER_NAME
+        ADD SI,2
+        ADD SI,AX
+        MOV CX,0
+        MOV [SI],CX
+
+
+        CMP CURRENT_GAMEMODE , 1 ; if(CURRENT_GAMEMODE == PlayerVsComputer)
+        JE READPLAYER_NAMES_PVC
+
+
+
+        CALL BREAK_LINE
+
+        MOV BL,09h; light blue color 
+        MOV SI,OFFSET INPUT_SECONDNAME
+        CALL DRAW_STRING
+
+
+        MOV AH, 0Ah ; read string
+        LEA DX, SECOND_PLAYER_NAME ; SECOND_PLAYER_NAME+0 -> size array | SECOND_PLAYER_NAME+1 -> entered characters
+        MOV SECOND_PLAYER_NAME,32 ; size array
+        INT 21h
+        CALL BREAK_LINE
+
+        ;replace last letter with null terminator
+        MOV AX,0
+        ADD AL,[SECOND_PLAYER_NAME+1]
+        MOV SI,OFFSET SECOND_PLAYER_NAME
+        ADD SI,2
+        ADD SI,AX
+        MOV CX,0
+        MOV [SI],CX
+    RET
+
+READPLAYER_NAMES_PVC:
+    MOV CX,10
+    MOV SI, offset SECOND_PLAYER_NAME
+    MOV DI, offset COMPUTER_NAME
+    CALL COPY_STRING
+    RET
 ;------------------------------------------------------------------------------------------------------
 
 
 GAME_RENDER:
-    MOV AH,02h;Set cursor position
-    MOV DH,8h;row
-    MOV DL,10h;col
-    INT 10h
-
-    MOV BL,09h; light blue color 
-    MOV SI, offset FIRST_PLAYER_NAME+2
-    CALL DRAW_STRING
-
-    MOV SI, offset SEPARATOR_NAME ; " : "
-    CALL DRAW_STRING
-
-    MOV AX , FIRST_PLAYER_SCORE
-    CALL PRINT_NUM
-
-
     MOV AH,02h;Set cursor position
     MOV DH,6h;row
     MOV DL,10h;col
     INT 10h
 
     MOV BL,0Ch; light red color 
+    MOV SI, offset FIRST_PLAYER_NAME+2
+    CALL DRAW_STRING
+
+    MOV SI, offset SEPARATOR_NAME ; " : "
+    CALL DRAW_STRING
+
+    
+ 
+    MOV AL,CURRENT_CHECK_POS+1
+
+
+    ADD AL,'0'
+    MOV AH, 02h
+    MOV DL, AL;the letter to print
+    INT 21h
+
+
+
+    MOV AH,02h;Set cursor position
+    MOV DH,8h;row
+    MOV DL,10h;col
+    INT 10h
+
+    MOV BL,09h; light blue color 
     MOV SI, offset SECOND_PLAYER_NAME+2
     CALL DRAW_STRING
 
@@ -407,16 +435,296 @@ GAME_RENDER:
 
 GAME_EVENTS:
     MOV AH, 01h;read char
-    INT 21h;al 
+    INT 21h;AL
+
+    PUSH AX
+    MOV AH, 02h     
+    MOV DL, 8     ; \b -> back one line  
+    INT 21h        
+
+    ;overwrite last letter with ''
+    MOV AH, 02h    
+    MOV DL, ' '    
+    INT 21h
+    POP AX         
+
+    MOV SI, OFFSET CURRENT_CHECK_POS  ; Carrega o endereço de memória em SI
+
+    CMP AL,13
+    JE GAME_EVENTS_ONCLICK
+
+GAME_EVENTS_ARROWS:
+    CMP AL , "S"
+    JE GAME_EVENTS_DOWNKEY 
+    CMP AL, "s"
+    JE GAME_EVENTS_DOWNKEY    
+
+    CMP AL,"W"
+    JE GAME_EVENTS_UPKEY
+    CMP AL,"w"
+    JE GAME_EVENTS_UPKEY
+
+    CMP AL,"D"
+    JE GAME_EVENTS_RIGHTKEY
+    CMP AL,"d"
+    JE GAME_EVENTS_RIGHTKEY
+
+    CMP AL,"A"
+    JE GAME_EVENTS_LEFTKEY
+    CMP AL,"a"
+    JE GAME_EVENTS_LEFTKEY
+
+    JMP GAME_EVENTS_END
 
 
+    GAME_EVENTS_ONCLICK:
+        CALL CAN_PLAY
+        CMP AX,0
+        JE GAME_EVENTS_END
 
+        CALL CLEAR_BOARD_SELECTED
+        CALL ONPLAY_CELL
+
+        CALL CAN_PLAY
+        CMP AX , 0
+        JE GAME_EVENTS_END
+
+        CALL DRAW_CHECK_POS
+        JMP GAME_EVENTS_END
+
+    GAME_EVENTS_UPKEY:
+        DEC BYTE PTR [SI+1]
+        CMP BYTE PTR [SI+1], 0
+        JL GE_LESS_Y
+        JMP GAME_EVENTS_CLEAR
+
+    GAME_EVENTS_DOWNKEY:
+        INC BYTE PTR [SI+1]
+        CMP BYTE PTR [SI+1], 2
+        JG GE_GREATER_Y
+        JMP GAME_EVENTS_CLEAR
+
+    GAME_EVENTS_LEFTKEY:
+        DEC CURRENT_CHECK_POS
+        CMP CURRENT_CHECK_POS, 0
+        JL GE_LESS
+        JMP GAME_EVENTS_CLEAR
+    GAME_EVENTS_RIGHTKEY:
+        INC BYTE PTR [SI]
+        CMP CURRENT_CHECK_POS, 2
+        JG GE_GREATER
+        JMP GAME_EVENTS_CLEAR
+
+
+        GE_GREATER:
+            MOV BYTE PTR [SI],2
+            JMP GAME_EVENTS_CLEAR
+        GE_LESS:
+            MOV BYTE PTR [SI],0
+            JMP GAME_EVENTS_CLEAR
+        GE_GREATER_Y:
+            MOV BYTE PTR [SI+1],2
+            JMP GAME_EVENTS_CLEAR
+        GE_LESS_Y:
+            MOV BYTE PTR [SI+1],0
+
+        GAME_EVENTS_CLEAR:
+            CALL CLEAR_BOARD_SELECTED ; clear current board "selected"
+            CALL CAN_PLAY
+            CMP AX , 0
+            JE GAME_EVENTS_END
+            CALL DRAW_CHECK_POS
+            RET
 
     GAME_EVENTS_END:
         RET
 
-;--------------------------------------------------------------------------------------
+;AX == 1 -> yes can
+CAN_PLAY:
+    MOV AH, SELECTED_TABLE
+    MOV DL , BYTE PTR CURRENT_CHECK_POS
+    MOV DH , BYTE PTR CURRENT_CHECK_POS+1
+    CALL GET_CELL_POS
 
+    MOV SI,OFFSET BOARDS
+    ADD SI,CX
+
+    MOV AX,0
+    CMP BYTE PTR [SI],' ' ;se não estiver vazia simplesmente sai  
+    JE CANPLAY_YES
+
+    CMP BYTE PTR [SI],"K"
+    JE CANPLAY_YES
+
+    CMP BYTE PTR [SI],"L"
+    JE CANPLAY_YES
+
+    JMP CAN_PLAY_END
+
+    CANPLAY_YES:
+        MOV AX,1
+CAN_PLAY_END:
+    RET
+
+DRAW_CHECK_POS:
+    MOV AH , SELECTED_TABLE
+    MOV DL , CURRENT_CHECK_POS
+    MOV DH , CURRENT_CHECK_POS+1
+
+    
+    CMP CURRENT_PLAYER , 0
+    JE DRAW_CHECK_K
+
+    CMP CURRENT_PLAYER , 1
+    JE DRAW_CHECK_O
+
+    DRAW_CHECK_K:
+    MOV AL , "K"
+    JMP DRAW_CHECK_END
+
+    DRAW_CHECK_O:
+    MOV AL , "L"
+
+DRAW_CHECK_END:
+    CALL WRITE_CELL
+    RET
+
+
+ONPLAY_CELL:
+    MOV AH,SELECTED_TABLE
+    MOV DL,BYTE PTR CURRENT_CHECK_POS
+    MOV DH,BYTE PTR CURRENT_CHECK_POS+1
+
+
+    CMP CURRENT_PLAYER,1
+    JE ONPLAY_CELL_Y 
+
+   ; CMP CURRENT_PLAYER,0
+    ;JE ONPLAY_CELL_X 
+
+    ONPLAY_CELL_X:
+        MOV AL,"X"
+        JMP ONPLAY_CELL_WRITE
+    ONPLAY_CELL_Y:   
+        MOV AL,"O" 
+
+    ONPLAY_CELL_WRITE:
+        CALL WRITE_CELL
+
+
+    MOV AL, CURRENT_PLAYER
+    XOR AL, 1 ; CURRENT_PLAYER = !CURRENT_PLAYER
+    MOV CURRENT_PLAYER,AL
+
+
+    MOV AX,0
+    MOV AL,CURRENT_CHECK_POS+1
+    MOV BX,3
+    MUL BX
+    ADD AL, CURRENT_CHECK_POS
+    MOV SELECTED_TABLE,AL
+
+
+
+ONPLAY_CELL_END:
+    RET
+
+;--------------------------------------------------------------------------------------
+;Funções relacionada a table
+
+
+;se celula atual estiver vazia não faz
+;se nao estiver 
+;AX -> 1 empty | 0 not empty
+
+
+
+GOEMPTY_LEFT_END:
+    RET
+
+
+
+;AH -> table index
+;DH -> cell Y
+;DL -> cell X
+;CX -> return index = "("table+cellY+cellX")"
+GET_CELL_POS:
+    PUSH AX
+    PUSH DX
+    ;9* table index
+    MOV AL, AH
+    MOV AH,0
+    MOV BX, 9
+    MUL BX 
+
+    POP DX
+
+    MOV CX,AX ;  += x
+    ADD CL,DL
+
+    MOV AX,0
+    MOV AL,DH
+    MOV BX,3
+    MUL BX
+
+    ADD CX,AX
+
+    POP AX
+
+    RET
+;AH -> table index
+;DH -> cell Y
+;DL -> cell X
+;AL -> letter
+WRITE_CELL:
+    CALL GET_CELL_POS
+    MOV SI, OFFSET BOARDS
+    ADD SI,CX
+    MOV BYTE PTR[SI],AL
+    RET
+
+CLEAR_BOARD_SELECTED:
+    MOV SI, OFFSET BOARDS
+    MOV AX, 0
+    MOV AL, SELECTED_TABLE
+    MOV BX, 9
+    MUL BX
+    ADD SI,AX
+
+    MOV CX, 9              ; Set loop counter to 9
+    MOV AL, " "            ; Set AL register to the space character
+CLEAR_BOARD_SELECTED_LOOP:
+    MOV AL, BYTE PTR [SI]   ; Load the character at [board + si] into AL
+    CMP AL, 'K'                    ; Compare AL with 'K'
+    JE CLEAR_BOARD_SELECTED_CHAR                  ; Jump to clear_char if equal
+    CMP AL, 'L'                    ; Compare AL with 'L'
+    JE CLEAR_BOARD_SELECTED_CHAR                  ; Jump to clear_char if equal
+    INC SI                         ; Increment source index
+    LOOP CLEAR_BOARD_SELECTED_LOOP                ; Loop until cx (loop counter) becomes 0
+    RET    
+                            ; Return from the function
+CLEAR_BOARD_SELECTED_CHAR:
+    MOV BYTE PTR [SI], ' '  ; Store a space character at [board + si]
+    INC SI                          ; Increment source index
+    LOOP CLEAR_BOARD_SELECTED_LOOP                 ; Loop until cx (loop counter) becomes 0
+    RET 
+
+
+;SI -> board 3x3=9
+CLEAR_BOARD:
+    MOV CX, 9              ; Set loop counter to 9
+    MOV AL, ' '            ; Set AL register to the space character
+CLEAR_BOARD_LOOP:
+    MOV BYTE PTR [SI], al  
+    INC SI                        
+    loop CLEAR_BOARD_LOOP                ; Loop until cx (loop counter) becomes 0
+    RET     
+
+CLEAR_CHAR:
+  MOV BYTE PTR [SI], al  
+  INC SI
+
+    
 
 DRAW_BOARDS:
     PUSH BP
@@ -437,6 +745,7 @@ DRAW_BOARDS:
 
             MOV AH,03h;Get cursor position
             INT 10h; DH -> row | DL -> col | AX -> 0 | CH -> Start scan line | CL -> End Scan line
+
             MOV AH,02h;Set cursor position
             ADD DL,4
             INT 10h
@@ -465,6 +774,9 @@ DRAW_BOARDS:
     MOV SP,BP
     POP BP 
     RET
+
+
+
 ;SI -> pointer to array
 DRAW_BOARD:
     PUSH BP
@@ -489,14 +801,37 @@ DRAW_BOARD:
             INT 10h
             POP DX
       
+
+
+
             MOV AH,09h;write character
             MOV AL,[SI]
             INC SI
-            MOV BX,04h; red color
             MOV BH,0
+
+            ;MOV BX,07h; light gray color 
+
+            CMP AL , 'K'
+            JE SELECT_X
+
+            CMP AL , 'L'
+            JE SELECT_O
+
+            CMP AL , 'X'
+            JE BOARD_RED
+
+            JMP BOARD_BLUE
+            BOARD_RED:
+                MOV BX, 0Ch; light red color 
+                JMP BOARD_WRITE_CHAR
+            BOARD_BLUE:
+                MOV BX, 09h; light blue color 
+        BOARD_WRITE_CHAR:
             PUSH CX
             MOV CX,01h; num times
             INT 10h
+
+
             POP CX
 
             INC DX
@@ -518,12 +853,31 @@ DRAW_BOARD:
     RET 
 
 
+SELECT_X:
+    MOV BX,07h; light gray color 
+    MOV AL,'X'
+    JMP BOARD_WRITE_CHAR
 
+SELECT_O:
+    MOV BX,07h; light gray color 
+    MOV AL,'O'
+    JMP BOARD_WRITE_CHAR 
 
 
 ;--------------------------------------------------------------------------------
 ;Funçoes de utilidade
 
+
+;CX -> comprimento da string
+;SI -> dest
+;DI -> src
+COPY_STRING:
+MOV AL, [DI]
+MOV [SI], AL
+INC SI
+INC DI
+LOOP COPY_STRING
+RET
 
 ;AX -> number
 PRINT_NUM:
@@ -590,13 +944,10 @@ CLEAR_SCREEN:
     SUB SP,4; 
     MOV [BP-2],CX ; x
     MOV [BP-4],DX ; y
- 
-     ADD BX,CX ; width+x
-
-
-     ADD SI,DX
-     MOV BH,00h ; page number
-     widthloop:
+    ADD BX,CX ; width+x
+    ADD SI,DX
+    MOV BH,00h ; page number
+    widthloop:
          MOV DX, [BP-4]
          MOV AH,0Ch ; draw pixel
          INT 10h

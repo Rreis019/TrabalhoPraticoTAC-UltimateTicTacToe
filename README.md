@@ -6,7 +6,7 @@
 
 ✅ - Leitura e apresentação do nome do jogador em cada jogada (0,2 val)
 
-❌ - Navegação limitada nas células dos tabuleiros que permitem
+✅  - Navegação limitada nas células dos tabuleiros que permitem
 assinalar a jogada de cada jogador (X ou O). Bloquear o
 mini-tabuleiro quando não fizer sentido mais jogadas no mesmo;(0,5 val)
 
