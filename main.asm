@@ -14,14 +14,17 @@ DATA SEGMENT
     CURRENT_GAMEMODE DB 0 ; o modo de jogo atual | 0 -> player vs player | 1 -> player vs computer
 
     BOARDS db 9 dup (9 dup (' ')) ; os tabuleiros | K -> select X | L -> select O
-    SELECTED_TABLE DB  2; indica qual tabela esta selecionada
-    CURRENT_PLAYER DB 1 ; indica qual é o player que esta jogar
+    SELECTED_TABLE DB 0; Indicate which table is selected | 96 -> select table
+    CURRENT_PLAYER DB 1 ; Indicate which player is currently playing
 
 
     ; indica a posição do X ao jogar
-    CURRENT_CHECK_POS DB 1,1 ; x,y 
+    CURRENT_CHECK_POS DB 0,0 ; x,y 
 
-    BOARD_WIN db 9 dup (0) ; 1 -> Red Ganhou | 2 -> Blue ganhou
+    BOARD_WIN db 9 dup (0) ; 1 -> Red Ganhou | 2 -> Blue ganhou | 3 -> Tie | 4 -> selected
+
+    ;rows | cols | diagonals
+    ;WIN_PATTERNS DB 0,1,2 , 3,4,5 , 6,7,8  ,  0,3,6 , 1,4,7 , 2,5,8  ,  0,4,8 , 2,4,6 
 
     FIRST_PLAYER_NAME DB 32 dup(0)
     SECOND_PLAYER_NAME DB 32 dup(0)
@@ -75,8 +78,10 @@ CODE SEGMENT PARA 'CODE'
         INT 10h
  
 
-        CALL DRAW_CHECK_POS
+        ;MOV BOARD_WIN+1,2
+        ;MOV BOARD_WIN+1,1
 
+        CALL DRAW_CHECK_POS
         GAME_LOOP:
             MOV AX, 0A000h  ; Set ES to point to the video memory segment
             MOV ES, AX
@@ -389,15 +394,14 @@ GAME_RENDER:
     CALL DRAW_STRING
 
     
- 
-    MOV AL,CURRENT_CHECK_POS+1
-
-
+    MOV AL, CURRENT_CHECK_POS
     ADD AL,'0'
     MOV AH, 02h
     MOV DL, AL;the letter to print
     INT 21h
 
+    ;MOV AX , FIRST_PLAYER_SCORE
+    ;CALL PRINT_NUM
 
 
     MOV AH,02h;Set cursor position
@@ -542,6 +546,10 @@ GAME_EVENTS_ARROWS:
 ;AX == 1 -> yes can
 CAN_PLAY:
     MOV AH, SELECTED_TABLE
+    
+    CMP AH , 96
+    JE CANPLAY_YES
+
     MOV DL , BYTE PTR CURRENT_CHECK_POS
     MOV DH , BYTE PTR CURRENT_CHECK_POS+1
     CALL GET_CELL_POS
@@ -566,12 +574,21 @@ CAN_PLAY:
 CAN_PLAY_END:
     RET
 
+CAN_PLAY_BOARDWIN:
+
+
+
+
+
+
 DRAW_CHECK_POS:
     MOV AH , SELECTED_TABLE
     MOV DL , CURRENT_CHECK_POS
     MOV DH , CURRENT_CHECK_POS+1
 
-    
+    CMP SELECTED_TABLE,96
+    JE DRAW_SELECTED_TABLE
+
     CMP CURRENT_PLAYER , 0
     JE DRAW_CHECK_K
 
@@ -580,21 +597,48 @@ DRAW_CHECK_POS:
 
     DRAW_CHECK_K:
     MOV AL , "K"
-    JMP DRAW_CHECK_END
+    JMP DRAW_CHECK_WRITE
 
     DRAW_CHECK_O:
     MOV AL , "L"
 
-DRAW_CHECK_END:
+DRAW_CHECK_WRITE:
     CALL WRITE_CELL
+DRAW_CHECK_END:
     RET
 
 
+DRAW_SELECTED_TABLE:
+    MOV SI, OFFSET BOARD_WIN
+    CALL CLEAR_BOARDWIN_SELECTED
+
+    MOV AH,0
+    MOV DL , CURRENT_CHECK_POS
+    MOV DH , CURRENT_CHECK_POS+1
+    CALL GET_CELL_POS
+   
+    ;CX
+    MOV SI,OFFSET BOARD_WIN
+    ADD SI,CX
+
+    CMP BYTE PTR [SI] , 0
+    JNE DRAW_CHECK_END
+
+    MOV BYTE PTR [SI],4
+   
+    JMP DRAW_CHECK_END
+    
+
+
 ONPLAY_CELL:
+
+
     MOV AH,SELECTED_TABLE
     MOV DL,BYTE PTR CURRENT_CHECK_POS
     MOV DH,BYTE PTR CURRENT_CHECK_POS+1
 
+    CMP AH , 96
+    JE ONPLAY_SELECTTABLE
 
     CMP CURRENT_PLAYER,1
     JE ONPLAY_CELL_Y 
@@ -616,7 +660,30 @@ ONPLAY_CELL:
     XOR AL, 1 ; CURRENT_PLAYER = !CURRENT_PLAYER
     MOV CURRENT_PLAYER,AL
 
+    MOV SI , OFFSET BOARDS
 
+    MOV AX,9
+    MOV DX,0
+    MOV DL,SELECTED_TABLE
+    MUL DX
+    ADD SI,AX
+
+
+    ;Se alguem ganhou prenche tabela boardwin com o valor corresponde
+    MOV CL,"X"
+    MOV BL,1
+    CALL CHECK_WIN
+    CMP AX , 1
+    JE ONPLAY_CELL_SET_BOARDWIN
+
+    MOV CL,"O"
+    MOV BL,2
+    CALL CHECK_WIN
+    CMP AX , 1
+    JE ONPLAY_CELL_SET_BOARDWIN
+    ;------------------------------------------
+
+ONPLAY_CELL_MID:
     MOV AX,0
     MOV AL,CURRENT_CHECK_POS+1
     MOV BX,3
@@ -625,22 +692,238 @@ ONPLAY_CELL:
     MOV SELECTED_TABLE,AL
 
 
+    MOV SI,OFFSET BOARD_WIN
+    MOV DX,0
+    MOV DL,SELECTED_TABLE
+    ADD SI,DX
+    CMP BYTE PTR [SI] ,0 
+    JNE SET_SELECTED_TABLE    
 
 ONPLAY_CELL_END:
     RET
 
+ONPLAY_SELECTTABLE:
+    MOV AH,0
+    CALL GET_CELL_POS
+    MOV SI,OFFSET BOARD_WIN
+    ADD SI,CX
+
+    CMP BYTE PTR [SI] , 4
+    JE ONPLAY_SELECTTABLE_WRITE
+
+    CMP BYTE PTR [SI] , 0
+    JNE ONPLAY_CELL_END
+
+ONPLAY_SELECTTABLE_WRITE:
+    MOV BYTE PTR [SI],0 ; remove selection of the table
+    MOV SELECTED_TABLE,CL
+
+    JMP ONPLAY_CELL_END
+
+
+
+ONPLAY_CELL_SET_BOARDWIN:
+    MOV SI, OFFSET BOARD_WIN
+    MOV DX,0
+    MOV DL,SELECTED_TABLE
+    ADD SI,DX 
+    MOV BYTE PTR [SI],BL
+    JMP ONPLAY_CELL_MID
 ;--------------------------------------------------------------------------------------
 ;Funções relacionada a table
 
-
-;se celula atual estiver vazia não faz
-;se nao estiver 
-;AX -> 1 empty | 0 not empty
-
+SET_SELECTED_TABLE:
+    MOV SELECTED_TABLE,96
+    JMP ONPLAY_CELL_END
 
 
-GOEMPTY_LEFT_END:
+
+CHECK_MINI_TABLES:
+    
+    MOV CX,0
+    CHECK_MINI_LOOP:
+        ; code here
+        MOV AX,9
+        MOV DX,0
+        MOV DL,SELECTED_TABLE
+        MUL DX
+        ADD SI,AX
+        CALL CHECK_WIN
+
+        MOV SI, OFFSET BOARD_WIN
+        MOV DX,0
+        MOV DL,SELECTED_TABLE
+        ADD SI,DX 
+        MOV BYTE PTR [SI],AL
+    
+        INC CX
+        CMP CX, 9
+        JNE CHECK_MINI_END
+    
+CHECK_MINI_END:
     RET
+
+
+;SI -> board
+;CL -> symbol
+;RETURN AX == 1 WIN 
+CHECK_WIN:
+    PUSH BP
+    MOV BP,SP
+    SUB SP,2
+    MOV [BP-2],SI
+    PUSH DX
+    MOV DL,CL
+
+    MOV CX,0
+    CHECKWIN_ROWX:
+        CMP BYTE PTR [SI], DL
+        JNE CHECK_WIN_ROWX_END
+
+        CMP BYTE PTR [SI+1], DL
+        JNE CHECK_WIN_ROWX_END
+
+        CMP BYTE PTR [SI+2], DL
+        JNE CHECK_WIN_ROWX_END
+
+        MOV AX,1
+        JMP CHECKWIN_END
+    CHECK_WIN_ROWX_END:
+        ADD SI,3
+        ADD CX,1
+        CMP CX,3
+        JNE CHECKWIN_ROWX
+
+
+    MOV CX,0
+    MOV SI,[BP-2]
+    CHECKWIN_COLX:
+        CMP BYTE PTR [SI], DL
+        JNE CHECKWIN_COLX_END
+
+        CMP BYTE PTR [SI+3], DL
+        JNE CHECKWIN_COLX_END
+
+        CMP BYTE PTR [SI+6], DL
+        JNE CHECKWIN_COLX_END
+
+        MOV AX,1
+        JMP CHECKWIN_END
+    CHECKWIN_COLX_END:
+        INC SI
+        ADD CX,1
+        CMP CX,3
+        JNE CHECKWIN_COLX
+    MOV SI,[BP-2]
+    CHECKWIN_DIAGONALS_E:
+        CMP BYTE PTR [SI], DL
+        JNE CHECKWIN_DIAGONALS_D
+
+        CMP BYTE PTR [SI+4], DL
+        JNE CHECKWIN_DIAGONALS_D
+
+        CMP BYTE PTR [SI+8], DL
+        JNE CHECKWIN_DIAGONALS_D
+
+        MOV AX,1
+        JMP CHECKWIN_END
+
+    CHECKWIN_DIAGONALS_D:
+        CMP BYTE PTR [SI+2], DL
+        JNE CHECKWIN_DIAGONALS_D_END
+
+        CMP BYTE PTR [SI+4], DL
+        JNE CHECKWIN_DIAGONALS_D_END
+
+        CMP BYTE PTR [SI+6], DL
+        JNE CHECKWIN_DIAGONALS_D_END
+
+        MOV AX,1
+        JMP CHECKWIN_END
+
+CHECKWIN_DIAGONALS_D_END:
+    MOV AX,0
+CHECKWIN_END:
+    POP DX
+    ADD SP,2
+    MOV SP,BP
+    POP BP 
+    RET
+
+
+;CHECK_WIN:
+;    PUSH BP
+;    MOV BP,SP
+;    SUB SP,2
+;
+;    MOV [BP-2],SI
+;    MOV BX,OFFSET WIN_PATTERNS
+;
+;    MOV AX,0
+;    MOV CX,0
+;   CHECK_WIN_LOOP:
+;        MOV DX,0
+;        MOV SI,[BP-2]
+;        MOV BYTE PTR DL,[BX]
+;        ADD SI,DX
+;        CMP BYTE PTR [SI], "X"
+;        JNE CHECK_WIN_LOOP_END    
+;
+;        MOV DX,0
+;        MOV SI,[BP-2]
+;        MOV BYTE PTR DL,[BX+1]
+;        ADD SI,DX
+;        CMP BYTE PTR [SI], "X"
+;        JNE CHECK_WIN_LOOP_END   
+;
+;        MOV DX,0
+;        MOV SI,[BP-2]
+;        MOV BYTE PTR DL,[BX+2]
+;        ADD SI,DX
+;        CMP BYTE PTR [SI], "X"
+;        JNE CHECK_WIN_LOOP_END   
+;
+;        MOV AX,1 ; WIN X
+;        JMP CHECK_WIN_END
+;
+;    CHECK_O:
+;        MOV DX,0
+;        MOV SI,[BP-2]
+;        MOV BYTE PTR DL,[BX]
+;        ADD SI,DX
+;        CMP BYTE PTR [SI], "O"
+;        JNE CHECK_WIN_LOOP_END    
+;
+;        MOV DX,0
+;        MOV SI,[BP-2]
+;        MOV BYTE PTR DL,[BX+1]
+;        ADD SI,DX
+;        CMP BYTE PTR [SI], "O"
+;        JNE CHECK_WIN_LOOP_END   ;
+;
+;        MOV DX,0
+;        MOV SI,[BP-2]
+;        MOV BYTE PTR DL,[BX+2]
+;        ADD SI,DX
+;        CMP BYTE PTR [SI], "O"
+;        JNE CHECK_WIN_LOOP_END   
+;
+;        MOV AX,2 ; WIN O
+;        JMP CHECK_WIN_END
+;
+;
+;    CHECK_WIN_LOOP_END:
+;        ADD BX, 3
+;        ADD CX, 3
+;        CMP CX, 24
+;        JNE CHECK_WIN_LOOP
+;
+;    MOV AX,0
+;CHECK_WIN_END:
+;    ADD SP,2
+;    MOV SP,BP
+;    POP BP 
+;    RET
 
 
 
@@ -651,27 +934,24 @@ GOEMPTY_LEFT_END:
 GET_CELL_POS:
     PUSH AX
     PUSH DX
-    ;9* table index
     MOV AL, AH
     MOV AH,0
     MOV BX, 9
-    MUL BX 
+    MUL BX ;AX = 9 *  table index
 
     POP DX
 
-    MOV CX,AX ;  += x
-    ADD CL,DL
+    MOV CX,AX ; CX = 9 *  table index
+    ADD CL,DL ; CX += cellX
 
     MOV AX,0
     MOV AL,DH
     MOV BX,3
     MUL BX
-
-    ADD CX,AX
-
+    ADD CX,AX ; CX += 3 * cellY
     POP AX
-
     RET
+
 ;AH -> table index
 ;DH -> cell Y
 ;DL -> cell X
@@ -710,6 +990,23 @@ CLEAR_BOARD_SELECTED_CHAR:
     RET 
 
 
+
+;SI -> board 3x3=9
+CLEAR_BOARDWIN_SELECTED:
+    MOV CX,0
+    CLEAR_BOARDWIN_LOOP:
+        CMP BYTE PTR [SI], 4
+        JNE CLEAR_BOARDWIN_LOOP_END
+        MOV BYTE PTR [SI],0
+
+        CLEAR_BOARDWIN_LOOP_END:
+        INC SI
+        INC CX
+        CMP CX, 9
+        JNE CLEAR_BOARDWIN_LOOP
+        
+
+
 ;SI -> board 3x3=9
 CLEAR_BOARD:
     MOV CX, 9              ; Set loop counter to 9
@@ -724,24 +1021,33 @@ CLEAR_CHAR:
   MOV BYTE PTR [SI], al  
   INC SI
 
-    
+
 
 DRAW_BOARDS:
     PUSH BP
     MOV BP,SP
-    SUB SP,2;
+    SUB SP,4
 
     MOV AH,03h;Get cursor position
     INT 10h; DH -> row | DL -> col | AX -> 0 | CH -> Start scan line | CL -> End Scan line
-    MOV [BP-2],DX
+    
+    MOV [BP-2],DX ; cursor position
+    MOV AX,0
+    MOV [BP-4],AX  ; table index
+
 
     MOV DX,0
     boardY:
         MOV CX,0
         PUSH DX
         startLoop:
+            MOV AX ,[BP-4]
             PUSH CX
             CALL DRAW_BOARD
+
+            MOV AX ,[BP-4]
+            INC AX
+            MOV [BP-4],AX
 
             MOV AH,03h;Get cursor position
             INT 10h; DH -> row | DL -> col | AX -> 0 | CH -> Start scan line | CL -> End Scan line
@@ -770,23 +1076,24 @@ DRAW_BOARDS:
     CMP DX, 3
     JNE boardY   
 
-    ADD SP,2
+    ADD SP,4
     MOV SP,BP
     POP BP 
     RET
 
 
-
+;AX -> table index
 ;SI -> pointer to array
 DRAW_BOARD:
     PUSH BP
     MOV BP,SP
-    SUB SP,2; 
+    SUB SP,4; 
+
+    MOV [BP-4],AX
 
     MOV AH,03h;Get cursor position
     INT 10h; DH -> row | DL -> col | AX -> 0 | CH -> Start scan line | CL -> End Scan line
     MOV [BP-2],DX
-
 
     MOV CX,0 ; row
     rowloop:
@@ -843,16 +1150,61 @@ DRAW_BOARD:
         JNE rowloop
 
 
+    PUSH SI
+
     MOV DX,[BP-2]    
     MOV AH,02h;Set cursor position
     INT 10h
 
-    ADD SP,2
+    ;Fill mini table if some player won
+    MOV SI,OFFSET BOARD_WIN
+    ADD SI,[BP-4]
+
+    CMP BYTE PTR [SI], 0
+    JE DRAW_BOARD_END
+
+
+    MOV AX,8 ; multiplier
+    ;Desenha o boardwin
+    ; cord X
+    MOV AL,8
+    XOR CX,CX
+    MOV CL,DL
+    MUL CL ; AX = margin(al) * cursor(cl x)
+    MOV CL,AL ; CL = resultado
+ 
+     ;cord Y
+    MOV AX,0
+    MOV AL,DH 
+    MOV DX,8
+    MUL DX
+    MOV DX,AX
+
+
+    MOV SI,OFFSET BOARD_WIN
+    ADD SI,[BP-4]
+    CMP BYTE PTR [SI], 1
+    JE DRAW_BOARD_RED
+
+    CMP BYTE PTR [SI], 2
+    JE DRAW_BOARD_BLUE
+
+    JMP DRAW_BOARD_GRAY
+
+    DRAW_BOARD_WIN:
+    MOV BX,24
+    MOV Si,24
+    CALL DRAW_FILL_RECT
+
+
+
+
+DRAW_BOARD_END:
+    POP SI
+    ADD SP,4
     MOV SP,BP
     POP BP 
     RET 
-
-
 SELECT_X:
     MOV BX,07h; light gray color 
     MOV AL,'X'
@@ -863,6 +1215,17 @@ SELECT_O:
     MOV AL,'O'
     JMP BOARD_WRITE_CHAR 
 
+DRAW_BOARD_RED:
+    MOV AX,0Ch; light red color 
+    JMP DRAW_BOARD_WIN
+
+DRAW_BOARD_BLUE:
+    MOV AX,09h; light blue color 
+    JMP DRAW_BOARD_WIN
+
+DRAW_BOARD_GRAY:
+    MOV AL,07h; light gray color 
+    JMP DRAW_BOARD_WIN
 
 ;--------------------------------------------------------------------------------
 ;Funçoes de utilidade
@@ -1021,4 +1384,3 @@ DRAW_STRING:
         RET
 CODE ENDS
 END START
-    
