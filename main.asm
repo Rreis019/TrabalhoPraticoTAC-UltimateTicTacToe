@@ -31,8 +31,8 @@ DATA SEGMENT
     SEPARATOR_NAME DB ' : ',0
     COMPUTER_NAME DB '  Computer',0
 
-    FIRST_PLAYER_SCORE DW 1337
-    SECOND_PLAYER_SCORE DW 1338
+    FIRST_PLAYER_SCORE DW 0
+    SECOND_PLAYER_SCORE DW 0
 
 
     CURRENT_SCREEN_INDEX DB 0
@@ -394,14 +394,8 @@ GAME_RENDER:
     CALL DRAW_STRING
 
     
-    MOV AL, CURRENT_CHECK_POS
-    ADD AL,'0'
-    MOV AH, 02h
-    MOV DL, AL;the letter to print
-    INT 21h
-
-    ;MOV AX , FIRST_PLAYER_SCORE
-    ;CALL PRINT_NUM
+    MOV AX , FIRST_PLAYER_SCORE
+    CALL PRINT_NUM
 
 
     MOV AH,02h;Set cursor position
@@ -682,6 +676,19 @@ ONPLAY_CELL:
     CMP AX , 1
     JE ONPLAY_CELL_SET_BOARDWIN
     ;------------------------------------------
+ONPLAY_CELL_CHECK_BOARDS:
+    MOV SI, OFFSET BOARD_WIN
+    MOV CL,1
+    CALL CHECK_WIN
+    CMP AX , 1
+    JE ONPLAY_CELL_ADD_P1SCORE
+
+    MOV SI, OFFSET BOARD_WIN
+    MOV CL,2
+    CALL CHECK_WIN
+    CMP AX , 1
+    JE ONPLAY_CELL_ADD_P2SCORE
+
 
 ONPLAY_CELL_MID:
     MOV AX,0
@@ -721,6 +728,17 @@ ONPLAY_SELECTTABLE_WRITE:
     JMP ONPLAY_CELL_END
 
 
+ONPLAY_CELL_ADD_P1SCORE:
+    ADD FIRST_PLAYER_SCORE,1
+    CALL CLEAR_BOARDS
+    CALL CLEAR_BOARD_WIN
+    JMP ONPLAY_CELL_END
+
+ONPLAY_CELL_ADD_P2SCORE:
+    ADD SECOND_PLAYER_SCORE,1
+    CALL CLEAR_BOARDS
+    CALL CLEAR_BOARD_WIN
+    JMP ONPLAY_CELL_END
 
 ONPLAY_CELL_SET_BOARDWIN:
     MOV SI, OFFSET BOARD_WIN
@@ -728,7 +746,7 @@ ONPLAY_CELL_SET_BOARDWIN:
     MOV DL,SELECTED_TABLE
     ADD SI,DX 
     MOV BYTE PTR [SI],BL
-    JMP ONPLAY_CELL_MID
+    JMP ONPLAY_CELL_CHECK_BOARDS
 ;--------------------------------------------------------------------------------------
 ;Funções relacionada a table
 
@@ -1004,23 +1022,31 @@ CLEAR_BOARDWIN_SELECTED:
         INC CX
         CMP CX, 9
         JNE CLEAR_BOARDWIN_LOOP
+    RET
         
 
 
-;SI -> board 3x3=9
-CLEAR_BOARD:
-    MOV CX, 9              ; Set loop counter to 9
-    MOV AL, ' '            ; Set AL register to the space character
+CLEAR_BOARDS:
+    MOV SI, OFFSET BOARDS
+    MOV CX, 81                      
 CLEAR_BOARD_LOOP:
-    MOV BYTE PTR [SI], al  
+    MOV BYTE PTR [SI], ' '  
     INC SI                        
-    loop CLEAR_BOARD_LOOP                ; Loop until cx (loop counter) becomes 0
+    loop CLEAR_BOARD_LOOP               
     RET     
-
 CLEAR_CHAR:
   MOV BYTE PTR [SI], al  
   INC SI
 
+
+CLEAR_BOARD_WIN:
+    MOV SI, OFFSET BOARD_WIN
+    MOV CX, 9                
+CLEAR_BOARD_WIN_LOOP:
+    MOV BYTE PTR [SI], 0  
+    INC SI                        
+    loop CLEAR_BOARD_WIN_LOOP                
+    RET  
 
 
 DRAW_BOARDS:

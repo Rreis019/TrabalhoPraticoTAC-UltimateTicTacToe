@@ -10,10 +10,10 @@
 assinalar a jogada de cada jogador (X ou O). Bloquear o
 mini-tabuleiro quando não fizer sentido mais jogadas no mesmo;(0,5 val)
 
-❌ - Identificação correta quando um dos jogadores ganha um
+✅ - Identificação correta quando um dos jogadores ganha um
 mini-tabuleiro ou existe um empate no mini-tabuleiro (1,2 val)
 
-❌ - Mostrar corretamente no tabuleiro principal o resultado de cada
+✅ - Mostrar corretamente no tabuleiro principal o resultado de cada
 vitória dos mini-tabuleiros bem como alteração da cor de fundo no
 correspondente mini-tabuleiro. (1,2 val)
 
@@ -21,7 +21,7 @@ correspondente mini-tabuleiro. (1,2 val)
 
 ### Funçionalidades Extra
 
-❌ Restrição na escolha do mini-tabuleiro (0,6 val)
+✅ Restrição na escolha do mini-tabuleiro (0,6 val)
 A escolha do mini-tabuleiro em que se joga não é livre, sendo determinada pela
 jogada anterior do adversário. A posição escolhida pelo adversário identifica o
 mini-tabuleiro onde deve ser continuado o jogo. 
