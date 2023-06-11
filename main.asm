@@ -7,39 +7,38 @@
 ;2 - Player vs Computer
 
 
-
-
 DATA SEGMENT
     IS_RUNNING DB 1
-    CURRENT_GAMEMODE DB 0 ; o modo de jogo atual | 0 -> player vs player | 1 -> player vs computer
+    
+    ;---------------------------------------------------------------------------------------------
+    GAME_VARS:
+        CURRENT_GAMEMODE DB 0 ; o modo de jogo atual | 0 -> player vs player | 1 -> player vs computer
+        SELECTED_TABLE DB 0; Indicate which table is selected | 96 -> select table
+        CURRENT_PLAYER DB 1 ; Indicate which player is currently playing
+        CURRENT_CHECK_POS DB 0,0 ; x,y indica a posição do X ao jogar 
+        BOARDS db 9 dup (9 dup (' ')) ; os tabuleiros | K -> select X | L -> select O
+        BOARD_WIN db 9 dup (0) ; 1 -> Red Ganhou | 2 -> Blue ganhou | 3 -> Tie | 4 -> selected
+        FIRST_PLAYER_NAME DB 32 dup(0)
+        SECOND_PLAYER_NAME DB 32 dup(0)
+        FIRST_PLAYER_SCORE DW 0
+        SECOND_PLAYER_SCORE DW 0
+    ;---------------------------------------------------------------------------------------------
+    FILE_VARS:
+        FILE_NAME DB 32 dup(0)
+        FILE_HANDLE DW ?
+        FILE_NOT_FOUND DB 'O ficheiro nao foi encontrado',0
+        FILE_PROMPT DB 'Digite o nome do ficheiro: ','$'
+    ;---------------------------------------------------------------------------------------------
 
-    BOARDS db 9 dup (9 dup (' ')) ; os tabuleiros | K -> select X | L -> select O
-    SELECTED_TABLE DB 0; Indicate which table is selected | 96 -> select table
-    CURRENT_PLAYER DB 1 ; Indicate which player is currently playing
-
-
-    ; indica a posição do X ao jogar
-    CURRENT_CHECK_POS DB 0,0 ; x,y 
-
-    BOARD_WIN db 9 dup (0) ; 1 -> Red Ganhou | 2 -> Blue ganhou | 3 -> Tie | 4 -> selected
-
-    ;rows | cols | diagonals
-    ;WIN_PATTERNS DB 0,1,2 , 3,4,5 , 6,7,8  ,  0,3,6 , 1,4,7 , 2,5,8  ,  0,4,8 , 2,4,6 
-
-    FIRST_PLAYER_NAME DB 32 dup(0)
-    SECOND_PLAYER_NAME DB 32 dup(0)
     SEPARATOR_NAME DB ' : ',0
     COMPUTER_NAME DB '  Computer',0
-
-    FIRST_PLAYER_SCORE DW 0
-    SECOND_PLAYER_SCORE DW 0
-
-
     CURRENT_SCREEN_INDEX DB 0
-
+    ;WIN_PATTERNS DB 0,1,2 , 3,4,5 , 6,7,8  ,  0,3,6 , 1,4,7 , 2,5,8  ,  0,4,8 , 2,4,6 
+    ;rows | cols | diagonals
     CURRENT_ITEM_INDEX DW 0
     MENU_SELECTED DB '-> ',0
     MENU_TITLE DB 'Ultimate TicTacToe',0
+
 
     MENU_HELP DB 'Use w ou s para navegar pelo menu',0
     MENU_HELP2 DB 'Use enter para confirmar selecao',0
@@ -60,7 +59,12 @@ DATA SEGMENT
         DB 'Voltar para o menu',0
     MODE_MENU_SIZE DW 3
 
-
+    PAUSE_MENU_TITLE DB 'Jogo esta em pausa',0
+    PAUSE_MENU_ITEMS:
+        DB 'Continuar Jogar',0
+        DB 'Sair do Jogo',0
+        DB 'Sair e Salvar',0
+    PAUSE_MENU_SIZE DW 3
 DATA ENDS
 
 
@@ -109,10 +113,13 @@ RENDER_CURRENT_SCREEN:
     CMP AL , 2
     JE S_GAME
 
+    CMP AL , 3
+    JE S_PAUSE
+
     JMP RENDER_CURR_END
 
     S_STARTMENU:
-        MOV DX, OFFSET MENU_TITLE
+        MOV DX, OFFSET MENU_TITLE 
         MOV SI, OFFSET STARTMENU_ITEMS
         MOV AX, STARTMENU_SIZE
         CALL MENU_RENDER
@@ -131,6 +138,14 @@ RENDER_CURRENT_SCREEN:
     S_GAME:
         CALL GAME_RENDER
         CALL GAME_EVENTS
+        JMP RENDER_CURR_END
+    S_PAUSE:
+        MOV DX, OFFSET PAUSE_MENU_TITLE
+        MOV SI, OFFSET PAUSE_MENU_ITEMS
+        MOV AX, PAUSE_MENU_SIZE
+        CALL MENU_RENDER
+        MOV SI , PAUSEMENU_EVENTS
+        CALL MENU_EVENTS
         JMP RENDER_CURR_END
 RENDER_CURR_END:
     RET
@@ -180,15 +195,54 @@ STARTMENU_EVENTS:
 
     STARTMENU_NEWGAME:
         MOV CURRENT_SCREEN_INDEX,1;muda para o menu gamemode
+        CALL CLEAR_BOARDS
+        CALL CLEAR_BOARD_WIN
         JMP STARTMENU_EVENTS_END
     STARTMENU_CONTINUE:
-        MOV CURRENT_SCREEN_INDEX,1;muda para o menu gamemode
+        CALL READ_FILENAME
+        CALL GAME_LOAD_MATCH
+        CMP AX , 0
+        JE STARTMENU_EVENTS_END
+
+        MOV CURRENT_SCREEN_INDEX, 2 ; Game screen
         JMP STARTMENU_EVENTS_END
     STARTMENU_EXIT:
         MOV IS_RUNNING,0
+        MOV AH,00h ;setVideoMode
+        MOV AL,02h ; https://stanislavs.org/helppc/int_10-0.html
+        INT 10h
         JMP STARTMENU_EVENTS_END
 
 STARTMENU_EVENTS_END:
+    RET
+
+
+;---------------------------------------------------------------------------------
+PAUSEMENU_EVENTS:
+    
+    CMP CURRENT_ITEM_INDEX , 0
+    JE PAUSEMENU_CONTINUE
+
+    CMP CURRENT_ITEM_INDEX , 1
+    JE PAUSEMENU_BACKGAME
+
+    CMP CURRENT_ITEM_INDEX , 2
+    JE PAUSEMENU_BACK_AND_SAVE
+
+    PAUSEMENU_CONTINUE:
+        MOV CURRENT_SCREEN_INDEX,2
+        JMP STARTMENU_EVENTS_END
+
+    PAUSEMENU_BACKGAME:
+        MOV CURRENT_SCREEN_INDEX,0
+        JMP STARTMENU_EVENTS_END
+
+    PAUSEMENU_BACK_AND_SAVE:
+        CALL READ_FILENAME
+        MOV SI,OFFSET FILE_NAME+2
+        CALL GAME_SAVE_MATCH
+        MOV CURRENT_SCREEN_INDEX,0
+        JMP STARTMENU_EVENTS_END
     RET
 
 
@@ -262,13 +316,8 @@ MENU_RENDER:
 
 ;SI pointer to function which contains functions of the menu
 MENU_EVENTS:
-
-
     MOV AH, 01h;read char
     INT 21h;al 
-
-
-
 
     CMP AL, 's' 
     JE DOWN_KEY
@@ -307,8 +356,7 @@ MENU_EVENTS_END:
     RET
 
 
-
-;
+;----------------------------------------------------------------------------
 READPLAYER_NAMES:
         CALL CLEAR_SCREEN
         
@@ -333,6 +381,9 @@ READPLAYER_NAMES:
         MOV FIRST_PLAYER_NAME,32 ; size array
         INT 21h
         
+        CMP FIRST_PLAYER_NAME+1 , 0 ; Se estiver vazio ou so com 1 volta a perguntar
+        JLE READPLAYER_NAMES
+
         ;replace last letter with null terminator
         MOV AX,0
         ADD AL,[FIRST_PLAYER_NAME+1]
@@ -359,6 +410,11 @@ READPLAYER_NAMES:
         LEA DX, SECOND_PLAYER_NAME ; SECOND_PLAYER_NAME+0 -> size array | SECOND_PLAYER_NAME+1 -> entered characters
         MOV SECOND_PLAYER_NAME,32 ; size array
         INT 21h
+
+        CMP SECOND_PLAYER_NAME+1 , 0 ; Se estiver vazio ou so com 1 volta a perguntar
+        JLE READPLAYER_NAMES
+
+
         CALL BREAK_LINE
 
         ;replace last letter with null terminator
@@ -379,6 +435,97 @@ READPLAYER_NAMES_PVC:
     RET
 ;------------------------------------------------------------------------------------------------------
 
+READ_FILENAME:
+        CALL CLEAR_SCREEN
+
+        MOV AH,02h;Set cursor position
+        MOV DH,0h;row
+        MOV DL,0h;col
+        INT 10h
+
+        MOV DX, offset FILE_PROMPT ;print
+        MOV AH,09h
+        INT 21h
+
+        MOV AH, 0Ah ; read string
+        LEA DX, FILE_NAME ; FILE_NAME+0 -> size array | FILE_NAME+1 -> entered characters
+        MOV FILE_NAME,32 ; size array
+        INT 21h
+        
+        CMP FILE_NAME+1 , 0
+        JE READ_FILENAME
+
+        ;replace last letter with null terminator
+        MOV AX,0
+        ADD AL,[FILE_NAME+1]
+        MOV SI,OFFSET FILE_NAME
+        ADD SI,2
+        ADD SI,AX
+        MOV CX,0
+        MOV [SI],CX
+    RET
+
+;SI -> File Name
+GAME_SAVE_MATCH:
+    MOV DX, SI
+    MOV AH,3Ch ; Open File
+    MOV CX,0    ; Write Mode
+    INT 21H
+
+    ;JC FILE_ERROR 
+    MOV FILE_HANDLE,AX
+
+    MOV AH , 40h ; Write File
+    MOV BX , FILE_HANDLE
+    MOV DX , OFFSET GAME_VARS
+    MOV CX , 163 ; Size
+    INT 21H
+
+    MOV AH, 3EH           ; Close file
+    MOV BX, FILE_HANDLE   
+    INT 21H              
+    RET
+
+
+;RETURN AX == 0 Failed
+GAME_LOAD_MATCH:
+    MOV AH, 3DH ; 
+    MOV AL, 0
+    MOV DX, OFFSET FILE_NAME+2
+    INT 21H
+    JC GAME_LOAD_FAILED  
+    MOV FILE_HANDLE,AX      
+
+    MOV AH, 3FH           ; Read file
+    MOV BX, FILE_HANDLE   
+    MOV DX, OFFSET GAME_VARS         
+    MOV CX, 163           ; Size
+    INT 21H              
+
+    MOV AH, 3EH           ; Close file
+    MOV BX, FILE_HANDLE   
+    INT 21H 
+
+GAME_LOAD_MATCH_END:
+    MOV AX,1    
+    RET
+
+
+GAME_LOAD_FAILED:
+    CALL CLEAR_SCREEN
+    MOV BL,04h; red color
+    MOV SI, OFFSET FILE_NOT_FOUND
+    CALL DRAW_STRING
+
+    MOV AH, 01h;read char
+    INT 21h;AL
+    MOV AX,0
+    RET
+
+
+
+
+;----------------------------------------------------------------------------
 
 GAME_RENDER:
     MOV AH,02h;Set cursor position
@@ -451,6 +598,8 @@ GAME_EVENTS:
     CMP AL,13
     JE GAME_EVENTS_ONCLICK
 
+    CMP AL,27
+    JE GAME_EVENTS_PAUSE
 GAME_EVENTS_ARROWS:
     CMP AL , "S"
     JE GAME_EVENTS_DOWNKEY 
@@ -474,7 +623,9 @@ GAME_EVENTS_ARROWS:
 
     JMP GAME_EVENTS_END
 
-
+    GAME_EVENTS_PAUSE:
+        MOV CURRENT_SCREEN_INDEX,3
+        JMP GAME_EVENTS_END
     GAME_EVENTS_ONCLICK:
         CALL CAN_PLAY
         CMP AX,0
@@ -537,6 +688,8 @@ GAME_EVENTS_ARROWS:
     GAME_EVENTS_END:
         RET
 
+;----------------------------------------------------------------------------
+
 ;AX == 1 -> yes can
 CAN_PLAY:
     MOV AH, SELECTED_TABLE
@@ -568,7 +721,6 @@ CAN_PLAY:
 CAN_PLAY_END:
     RET
 
-CAN_PLAY_BOARDWIN:
 
 
 
