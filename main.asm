@@ -30,6 +30,8 @@ DATA SEGMENT
         FILE_PROMPT DB 'Digite o nome do ficheiro: ','$'
     ;---------------------------------------------------------------------------------------------
 
+    SEED DW 0
+
     SEPARATOR_NAME DB ' : ',0
     COMPUTER_NAME DB '  Computer',0
     CURRENT_SCREEN_INDEX DB 0
@@ -81,6 +83,15 @@ CODE SEGMENT PARA 'CODE'
         MOV AL,13h ; https://stanislavs.org/helppc/int_10-0.html
         INT 10h
  
+        MOV CX,0
+        MOV DX,10
+        CALL RANDOM_NUM
+        CALL PRINT_NUM
+
+        CALL BREAK_LINE
+
+        MOV AH,4Ch ; end program
+        INT 21h
 
         ;MOV BOARD_WIN+1,2
         ;MOV BOARD_WIN+1,1
@@ -1560,5 +1571,28 @@ DRAW_STRING:
         JMP DRAW_STRING_LOOP
     DRAW_STRING_LOOP_END:
         RET
+
+;CX -> Min
+;BX -> Max
+;Return AX 
+RANDOM_NUM:
+    PUSH CX
+    ;RANGE  (max-min)+1
+    SUB BX,CX
+    INC BX
+
+    MOV AH, 00H ; Read System Clock Counter
+    INT 1AH ;DX Low tick
+  
+    MOV AX,DX
+    XOR DX,DX
+
+    IDIV BX  ; AX / DX || quotient - AX | remainder - DX
+
+    POP CX
+    MOV AX,CX ; ax = min
+    ADD AX,DX ; ax += ('rand()' % range)
+    RET
+
 CODE ENDS
 END START
