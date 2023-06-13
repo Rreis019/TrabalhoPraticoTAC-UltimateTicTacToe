@@ -83,6 +83,8 @@ CODE SEGMENT PARA 'CODE'
         MOV AL,13h ; https://stanislavs.org/helppc/int_10-0.html
         INT 10h
  
+        MOV DX,10
+
 
         ;MOV BOARD_WIN+1,2
         ;MOV BOARD_WIN+1,1
@@ -327,10 +329,16 @@ MENU_EVENTS:
     CMP AL, 'S'     
     JE DOWN_KEY
 
+    CMP AL, 25
+    JE DOWN_KEY
+
     CMP AL , 'w'
     JE UP_KEY
 
     CMP AL, 'W'     
+    JE UP_KEY
+
+    CMP AL, 24     
     JE UP_KEY
 
     CMP AL, 13     
@@ -602,7 +610,7 @@ GAME_EVENTS:
 
     CMP AL,27
     JE GAME_EVENTS_PAUSE
-GAME_EVENTS_ARROWS:
+GAME_EVENTS_ARROWS: ;teclas para movimentar dentro do jogo
     CMP AL , "S"
     JE GAME_EVENTS_DOWNKEY 
     CMP AL, "s"
@@ -635,6 +643,15 @@ GAME_EVENTS_ARROWS:
 
         CALL CLEAR_BOARD_SELECTED
         CALL ONPLAY_CELL
+
+        ;--------------------Tentativa de colocar o computador a jogar sozinho-----
+
+        CMP CURRENT_GAMEMODE , 1 ; if(CURRENT_GAMEMODE == PlayerVsComputer)
+        JE ONPLAY_COMPUTER
+
+        GAME_EVENTS_RETURN_COMPUTER:
+
+        ;------------------------------------------------------------------------- 
 
         CALL CAN_PLAY
         CMP AX , 0
@@ -775,7 +792,6 @@ DRAW_SELECTED_TABLE:
     MOV BYTE PTR [SI],4
    
     JMP DRAW_CHECK_END
-    
 
 
 ONPLAY_CELL:
@@ -791,7 +807,7 @@ ONPLAY_CELL:
     CMP CURRENT_PLAYER,1
     JE ONPLAY_CELL_Y 
 
-   ; CMP CURRENT_PLAYER,0
+    ; CMP CURRENT_PLAYER,0
     ;JE ONPLAY_CELL_X 
 
     ONPLAY_CELL_X:
@@ -802,7 +818,6 @@ ONPLAY_CELL:
 
     ONPLAY_CELL_WRITE:
         CALL WRITE_CELL
-
 
     MOV AL, CURRENT_PLAYER
     XOR AL, 1 ; CURRENT_PLAYER = !CURRENT_PLAYER
@@ -817,7 +832,7 @@ ONPLAY_CELL:
     ADD SI,AX
 
 
-    ;Se alguem ganhou prenche tabela boardwin com o valor corresponde
+    ;Se alguem ganhou preenche tabela boardwin com o valor corresponde
     MOV CL,"X"
     MOV BL,1
     CALL CHECK_WIN
@@ -829,6 +844,7 @@ ONPLAY_CELL:
     CALL CHECK_WIN
     CMP AX , 1
     JE ONPLAY_CELL_SET_BOARDWIN
+
     ;------------------------------------------
 ONPLAY_CELL_CHECK_BOARDS:
     MOV SI, OFFSET BOARD_WIN
@@ -858,10 +874,40 @@ ONPLAY_CELL_MID:
     MOV DL,SELECTED_TABLE
     ADD SI,DX
     CMP BYTE PTR [SI] ,0 
-    JNE SET_SELECTED_TABLE    
+    JNE SET_SELECTED_TABLE  
+
+     
 
 ONPLAY_CELL_END:
     RET
+
+ONPLAY_COMPUTER:
+
+    ;CMP SELECTED_TABLE,96
+    ;JE 
+
+    MOV CX,0
+    MOV BX,2
+
+    CALL RANDOM_NUM
+
+    MOV CURRENT_CHECK_POS, AL
+
+    MOV CX,0
+    MOV BX,2
+
+    CALL RANDOM_NUM
+
+    MOV CURRENT_CHECK_POS+1, AL
+    CALL CAN_PLAY
+
+    CMP AX,1
+    JNE ONPLAY_COMPUTER
+
+    CALL ONPLAY_CELL
+
+
+jmp GAME_EVENTS_RETURN_COMPUTER
 
 ONPLAY_SELECTTABLE:
     MOV AH,0
@@ -1021,83 +1067,6 @@ CHECKWIN_END:
     MOV SP,BP
     POP BP 
     RET
-
-
-;CHECK_WIN:
-;    PUSH BP
-;    MOV BP,SP
-;    SUB SP,2
-;
-;    MOV [BP-2],SI
-;    MOV BX,OFFSET WIN_PATTERNS
-;
-;    MOV AX,0
-;    MOV CX,0
-;   CHECK_WIN_LOOP:
-;        MOV DX,0
-;        MOV SI,[BP-2]
-;        MOV BYTE PTR DL,[BX]
-;        ADD SI,DX
-;        CMP BYTE PTR [SI], "X"
-;        JNE CHECK_WIN_LOOP_END    
-;
-;        MOV DX,0
-;        MOV SI,[BP-2]
-;        MOV BYTE PTR DL,[BX+1]
-;        ADD SI,DX
-;        CMP BYTE PTR [SI], "X"
-;        JNE CHECK_WIN_LOOP_END   
-;
-;        MOV DX,0
-;        MOV SI,[BP-2]
-;        MOV BYTE PTR DL,[BX+2]
-;        ADD SI,DX
-;        CMP BYTE PTR [SI], "X"
-;        JNE CHECK_WIN_LOOP_END   
-;
-;        MOV AX,1 ; WIN X
-;        JMP CHECK_WIN_END
-;
-;    CHECK_O:
-;        MOV DX,0
-;        MOV SI,[BP-2]
-;        MOV BYTE PTR DL,[BX]
-;        ADD SI,DX
-;        CMP BYTE PTR [SI], "O"
-;        JNE CHECK_WIN_LOOP_END    
-;
-;        MOV DX,0
-;        MOV SI,[BP-2]
-;        MOV BYTE PTR DL,[BX+1]
-;        ADD SI,DX
-;        CMP BYTE PTR [SI], "O"
-;        JNE CHECK_WIN_LOOP_END   ;
-;
-;        MOV DX,0
-;        MOV SI,[BP-2]
-;        MOV BYTE PTR DL,[BX+2]
-;        ADD SI,DX
-;        CMP BYTE PTR [SI], "O"
-;        JNE CHECK_WIN_LOOP_END   
-;
-;        MOV AX,2 ; WIN O
-;        JMP CHECK_WIN_END
-;
-;
-;    CHECK_WIN_LOOP_END:
-;        ADD BX, 3
-;        ADD CX, 3
-;        CMP CX, 24
-;        JNE CHECK_WIN_LOOP
-;
-;    MOV AX,0
-;CHECK_WIN_END:
-;    ADD SP,2
-;    MOV SP,BP
-;    POP BP 
-;    RET
-
-
 
 ;AH -> table index
 ;DH -> cell Y
