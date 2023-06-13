@@ -83,15 +83,6 @@ CODE SEGMENT PARA 'CODE'
         MOV AL,13h ; https://stanislavs.org/helppc/int_10-0.html
         INT 10h
  
-        MOV CX,0
-        MOV DX,10
-        CALL RANDOM_NUM
-        CALL PRINT_NUM
-
-        CALL BREAK_LINE
-
-        MOV AH,4Ch ; end program
-        INT 21h
 
         ;MOV BOARD_WIN+1,2
         ;MOV BOARD_WIN+1,1
