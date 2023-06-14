@@ -29,4 +29,4 @@ mini-tabuleiro onde deve ser continuado o jogo.
 
 ✅ Poder Pausar o Jogo (0,8 val)
 
-❌ Jogo entre um humano e um jogador automático  (0,6 val)
+✅ Jogo entre um humano e um jogador automático  (0,6 val)

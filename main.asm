@@ -199,6 +199,17 @@ STARTMENU_EVENTS:
 
     STARTMENU_NEWGAME:
         MOV CURRENT_SCREEN_INDEX,1;muda para o menu gamemode
+        MOV SELECTED_TABLE,4
+
+        MOV CX,0
+        MOV BX,2
+        CALL RANDOM_NUM
+
+
+        MOV AH, 02h
+        MOV DL, 'A';the letter to print
+        INT 21h
+
         CALL CLEAR_BOARDS
         CALL CLEAR_BOARD_WIN
         JMP STARTMENU_EVENTS_END
@@ -588,7 +599,16 @@ GAME_RENDER:
 
     RET
 
+COMPUTER_PLAYFIRST:
+    CMP CURRENT_PLAYER , 1
+    JE ONPLAY_COMPUTER
+    JMP GAME_EVENTS_START    
+
 GAME_EVENTS:
+    CMP CURRENT_GAMEMODE , 1 ; SE O player vs Computer
+    JE COMPUTER_PLAYFIRST ; verifica se computador é primeiro a jogar
+
+GAME_EVENTS_START:
     MOV AH, 01h;read char
     INT 21h;AL
 
@@ -610,6 +630,12 @@ GAME_EVENTS:
 
     CMP AL,27
     JE GAME_EVENTS_PAUSE
+
+    
+
+
+
+
 GAME_EVENTS_ARROWS: ;teclas para movimentar dentro do jogo
     CMP AL , "S"
     JE GAME_EVENTS_DOWNKEY 
@@ -631,6 +657,7 @@ GAME_EVENTS_ARROWS: ;teclas para movimentar dentro do jogo
     CMP AL,"a"
     JE GAME_EVENTS_LEFTKEY
 
+
     JMP GAME_EVENTS_END
 
     GAME_EVENTS_PAUSE:
@@ -641,12 +668,14 @@ GAME_EVENTS_ARROWS: ;teclas para movimentar dentro do jogo
         CMP AX,0
         JE GAME_EVENTS_END
 
-        CALL CLEAR_BOARD_SELECTED
         CALL ONPLAY_CELL
 
-        ;--------------------Tentativa de colocar o computador a jogar sozinho-----
+  
+
+        JE GAME_EVENTS_RETURN_COMPUTER
 
         CMP CURRENT_GAMEMODE , 1 ; if(CURRENT_GAMEMODE == PlayerVsComputer)
+        
         JE ONPLAY_COMPUTER
 
         GAME_EVENTS_RETURN_COMPUTER:
@@ -904,10 +933,9 @@ ONPLAY_COMPUTER:
     CMP AX,1
     JNE ONPLAY_COMPUTER
 
+    CALL CLEAR_BOARD_SELECTED
     CALL ONPLAY_CELL
-
-
-jmp GAME_EVENTS_RETURN_COMPUTER
+    JMP GAME_EVENTS_RETURN_COMPUTER
 
 ONPLAY_SELECTTABLE:
     MOV AH,0
