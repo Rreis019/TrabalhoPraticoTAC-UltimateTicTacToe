@@ -1,4 +1,27 @@
-# UltimateTicTacToeAsm8086
+# Ultimate Tic-Tac-Toe em x8086 Assembly
+
+## Descrição
+
+Este é um projeto desenvolvido como trabalho da disciplina Tecnologia e Arquitetura de Computadores na Universidade ISEC. O objetivo do trabalho era criar o jogo "Ultimate Tic-Tac-Toe" utilizando a linguagem assembly x8086.
+
+O Ultimate Tic-Tac-Toe é uma versão do clássico jogo da velha, onde vários tabuleiros menores são agrupados em um tabuleiro maior. O jogo possui vários menus, como tela de título, seleção de modo e uma tela para mostrar o tabuleiro. Além disso, o jogo permite salvar, carregar e continuar jogos salvos, bem como pausar o jogo. Os menus também possuem um sistema de navegação usando as setas do teclado.
+
+## Imagens
+
+Aqui estão algumas capturas de tela do jogo:
+
+### Jogo em Andamento
+
+![Jogo em Andamento](InGame.JPG)
+
+### Seleção de Modo
+
+![Seleção de Modo](ModeSelecion.JPG)
+
+### Tela de Título
+
+![Tela de Título](TitleScreen.jpg)
+
 
 ## Tarefas ❌✅
 
@@ -17,7 +40,7 @@ mini-tabuleiro ou existe um empate no mini-tabuleiro (1,2 val)
 vitória dos mini-tabuleiros bem como alteração da cor de fundo no
 correspondente mini-tabuleiro. (1,2 val)
 
-❌ -Identificação do vencedor do jogo ou de empate final. (0,8 Val)
+✅ -Identificação do vencedor do jogo ou de empate final. (0,8 Val)
 
 ### Funçionalidades Extra
 
